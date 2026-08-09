@@ -35,11 +35,11 @@ class NpyPairDataSource(grain.sources.RandomAccessDataSource):
 
     def __len__(self):
         return len(self.noisy_files)
-
+    #don't load during get item
     def __getitem__(self, index):
         noisy_lr = np.load(self.noisy_files[index])
         gt = np.load(self.gt_files[index])
-        return {"noisy_lr": noisy_lr,"gt": gt,}
+        return {"noisy_lr": noisy_lr,"gt": gt}
 
     def __repr__(self):
         return (
@@ -70,9 +70,7 @@ class RandomAlignedAugment(grain.transforms.RandomMap):
         noisy = element["noisy_lr"]
         gt = element["gt"]
 
-        # Convert to numpy
-        noisy = np.asarray(noisy)
-        gt = np.asarray(gt)
+       
 
         # Horizontal flip
         if rng.random() < self.p_hflip:
@@ -121,24 +119,8 @@ def translate_reflect(image, dx, dy):
 
     return padded[start_y:start_y + h,start_x:start_x + w]
 
-# Tensor Conversion
-class ToTensor(grain.transforms.Map):
-    def map(self, element):
-        noisy = element["noisy_lr"]
-        gt = element["gt"]
-        noisy = np.asarray(noisy, dtype=np.float32)
-        gt = np.asarray(gt, dtype=np.float32)
-
-        # H,W -> 1,H,W
-        if noisy.ndim == 2:
-            noisy = noisy[None, ...]
-        if gt.ndim == 2:
-            gt = gt[None, ...]
-
-        return {"noisy_lr": torch.from_numpy(np.ascontiguousarray(noisy)),"gt": torch.from_numpy(np.ascontiguousarray(gt))}
-
 # Create Grain DataLoader
-def create_dataloader(noisy_dir,gt_dir,batch_size=BATCH_SIZE,worker_count=NUM_WORKERS,seed=SEED):
+def create_dataloader(noisy_dir,gt_dir,batch_size=BATCH_SIZE,worker_count=NUM_WORKERS,seed=SEED,):
     source = NpyPairDataSource(noisy_dir=noisy_dir,gt_dir=gt_dir,)
     sampler = grain.IndexSampler(num_records=len(source),num_epochs=None,shuffle=True,seed=seed,shard_options=grain.NoSharding(),)
     dataloader = grain.DataLoader(
