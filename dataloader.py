@@ -20,13 +20,13 @@ MAX_TRANSLATION = 2
 # Data Source
 class NpyPairDataSource(grain.sources.RandomAccessDataSource):
 
-    def __init__(self, noisy_dir, gt_dir):
-        self.noisy_files = sorted(Path(noisy_dir).glob("*.npy"))
-        self.gt_files = sorted(Path(gt_dir).glob("*.npy"))
+    def __init__(self, noisy_files: list, gt_files: list):
+        self.noisy_files = list(noisy_files)
+        self.gt_files = list(gt_files)
         
         # Load everything once
-        self.noisy_data = np.stack([np.load(file)for file in self.noisy_files])
-        self.gt_data = np.stack([np.load(file)for file in self.gt_files])
+        self.noisy_data = np.stack([np.load(file) for file in self.noisy_files])
+        self.gt_data = np.stack([np.load(file) for file in self.gt_files])
         
     def __len__(self):
         return len(self.noisy_data)
@@ -131,16 +131,16 @@ class AddChannelDimension(grain.transforms.Map):
 
 
 # Create DataLoader
-def create_dataloader(
-    noisy_dir,
-    gt_dir,
+def create_src_dataloader(
+    noisy_files,
+    gt_files,
     batch_size=BATCH_SIZE,
     worker_count=NUM_WORKERS,
     seed=SEED,
     shuffle=False,
     augment=False
 ):
-    source = NpyPairDataSource(noisy_dir,gt_dir)
+    source = NpyPairDataSource(noisy_files, gt_files)
     sampler = grain.samplers.IndexSampler(num_records=len(source),num_epochs=None,shuffle=shuffle,seed=seed,shard_options=grain.sharding.NoSharding())
     operations = []
     if augment:
@@ -149,9 +149,9 @@ def create_dataloader(
     operations.append(AddChannelDimension())
     operations.append(grain.transforms.Batch(batch_size=batch_size,drop_remainder=True))
 
-    return grain.DataLoader(
+    return source,grain.DataLoader(
         data_source=source,
         sampler=sampler,
         operations=operations,
         worker_count=worker_count
-    )
+    ),

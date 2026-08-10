@@ -194,8 +194,25 @@ class RestorationPipeline(nnx.Module):
             num_blocks=num_blocks, upsample_scale=upsample_scale, embed_dim=deg_embed_dim, rngs=rngs,
         )
 
-    def __call__(self, x_norm: jax.Array, y_upsampled: jax.Array) -> tuple[jax.Array, jax.Array]:
+    def __call__(self, x_norm: jax.Array) -> tuple[jax.Array, jax.Array]:
         z_d = self.degradation_encoder(x_norm)
         corruption = self.nafnet(x_norm, z_d)
-        pred = y_upsampled - corruption
+        pred = jax.img.resize(x_norm,shape=pred.shape,method="bicubic") - corruption
+        return pred, z_d
+
+
+class RestorationPipeline_2(nnx.Module):
+    def __init__(self, in_channels, out_channels, hidden_dim, num_blocks, upsample_scale,
+                 deg_hidden_dim, deg_embed_dim, rngs: nnx.Rngs):
+        self.degradation_encoder = DegradationEncoder(
+            in_channels=in_channels, hidden_dim=deg_hidden_dim, embed_dim=deg_embed_dim, rngs=rngs,
+        )
+        self.nafnet = BaselineNAFNet(
+            in_channels=in_channels, out_channels=out_channels, hidden_dim=hidden_dim,
+            num_blocks=num_blocks, upsample_scale=upsample_scale, embed_dim=deg_embed_dim, rngs=rngs,
+        )
+
+    def __call__(self, x_norm: jax.Array) -> tuple[jax.Array, jax.Array]:
+        z_d = self.degradation_encoder(x_norm)
+        pred = self.nafnet(x_norm, z_d)   # direct HR prediction — no residual subtraction
         return pred, z_d
