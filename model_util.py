@@ -197,7 +197,7 @@ class RestorationPipeline(nnx.Module):
     def __call__(self, x_norm: jax.Array) -> tuple[jax.Array, jax.Array]:
         z_d = self.degradation_encoder(x_norm)
         corruption = self.nafnet(x_norm, z_d)
-        pred = jax.img.resize(x_norm,shape=pred.shape,method="bicubic") - corruption
+        pred = jax.image.resize(x_norm,shape=corruption.shape,method="bicubic") - corruption
         return pred, z_d
 
 
