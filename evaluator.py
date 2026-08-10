@@ -54,16 +54,16 @@ class ModelEvaluator:
         if n_eval==None:
             self.n_eval = len(os.listdir(gt_path))
 
-    def validate(self, pred, gt) -> dict: 
+    def validate(self, pred, gt) -> jax.Array: 
         # Get evaluation metrics at each validation step
         # INPUT:    pred - Reconstructed Images, in the shape (B, H, W, C)
         #           gt   - Ground Truth Images,  in the shape (B, H, W, C)
         # OUTPUT:   jax.Array([metric1_mean, metric2_mean, ...])
 
-        vals = {}
+        vals = []
         for metric, metric_fn in self.metrics.items():
-            vals[metric] = metric_fn(pred, gt).mean().item()
-        return vals
+            vals.append(metric_fn(pred, gt).mean())
+        return jnp.stack(vals)
 
 
     def evaluate(self, model):
