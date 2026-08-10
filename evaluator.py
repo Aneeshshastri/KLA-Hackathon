@@ -1,5 +1,5 @@
 import flax.nnx as nnx
-import jax.numpy as jnp, jax.image as jimg
+import jax.numpy as jnp, jax.image as jimg, jax
 import lpips_jax
 import numpy as np
 
@@ -7,46 +7,45 @@ import os
 
 import matplotlib.pyplot as plt
 
+# ==============================================================================
+#                      Metric Definitions (+ misc. defs)                             
+# ==============================================================================
 
 lpips_alex = lpips_jax.LPIPSEvaluator(net='alexnet', replicate=False)
 
 def LPIPS(gt:jnp.array, im:jnp.array):
-    gt = jimg.resize(gt, img_size, 'bicubic')  ## Debugging purpose
-    im = jimg.resize(im, img_size, 'bicubic')  ## Debugging purpose
-    gt = 2*jnp.expand_dims(jnp.stack([gt] * 3, axis=-1), 0)-1
-    im = 2*jnp.expand_dims(jnp.stack([im] * 3, axis=-1), 0)-1
+    gt = 2*jnp.concatenate([gt] * 3, axis=-1)-1
+    im = 2*jnp.concatenate([im] * 3, axis=-1)-1
     distance = lpips_alex(gt, im)
-    return float(distance.item())
+    return jnp.reshape(distance, (-1, 1))
 
 def SSIM(gt:jnp.array, im:jnp.array):
-    gt = jimg.resize(gt, img_size, 'bicubic')  ## Debugging purpose
-    im = jimg.resize(im, img_size, 'bicubic')  ## Debugging purpose
-    mean_gt = jnp.mean(gt)
-    mean_im = jnp.mean(im)
-    var_gt = jnp.var(gt)
-    var_im = jnp.var(im)
-    cross_var = jnp.mean(gt*im) - jnp.mean(gt)*jnp.mean(im)
+    mean_gt = jnp.mean(gt, axis=[0,1])
+    mean_im = jnp.mean(im, axis=[0,1])
+    var_gt = jnp.var(gt, axis=[0,1])
+    var_im = jnp.var(im, axis=[0,1])
+    cross_var = jnp.mean(gt*im, axis=[0,1]) - jnp.mean(gt, axis=[0,1])*jnp.mean(im, axis=[0,1])
     ssim = (2*mean_gt*mean_im + 1e-7)*(2*cross_var + 1e-7)/((mean_gt**2 + mean_im**2 + 1e-7)*(var_gt**2 + var_im**2 + 1e-7))
-    return float(ssim)
+    return ssim
 
 def PSNR(gt:jnp.array, im:jnp.array):
-    gt = jimg.resize(gt, img_size, 'bicubic')  ## Debugging purpose
-    im = jimg.resize(im, img_size, 'bicubic')  ## Debugging purpose
     max_pixel = 1
-    mse = jnp.mean((gt-im)**2)
+    mse = jnp.mean((gt-im)**2, axis=[0,1])
     psnr = 20 * jnp.log10(max_pixel/jnp.sqrt(mse))
-    return float(psnr)
+    return psnr
 
 @nnx.jit
 def forward(model, x):
     return model(x)
 
-metrics = {'SSIM':SSIM, 'PSNR':PSNR, 'LPIPS':LPIPS}
 
+#———————————————————————— Model Evaluation Class —————————————————————————                        
+# ModelEvaluator.validate()  -->  to be used in a single validation step
+# ModelEvaluator.evaluate() -->  large scale calculation of metrics from 
+#                                 testing/evaluation purposes
 class ModelEvaluator:
-    def __init__(self, model:nnx.Module, metrics:dict, gt_path, noisylr_path, mpi_path, n_eval=None):
-        self.model = model
-        self.metrics = metrics
+    def __init__(self, gt_path=None, noisylr_path=None, mpi_path=None, n_eval=None):
+        self.metrics = {'SSIM':jax.vmap(SSIM), 'PSNR':jax.vmap(PSNR), 'LPIPS':LPIPS}
         self.data = {}
         self.gt_path = gt_path
         self.noisylr_path = noisylr_path
@@ -55,28 +54,44 @@ class ModelEvaluator:
         if n_eval==None:
             self.n_eval = len(os.listdir(gt_path))
 
-    def evalulate(self):
-        # self.model.eval()
+    def validate(self, pred, gt) -> dict: 
+        # Get evaluation metrics at each validation step
+        # INPUT:    pred - Reconstructed Images, in the shape (B, H, W, C)
+        #           gt   - Ground Truth Images,  in the shape (B, H, W, C)
+        # OUTPUT:   jax.Array([metric1_mean, metric2_mean, ...])
+
+        vals = {}
+        for metric, metric_fn in self.metrics.items():
+            vals[metric] = metric_fn(pred, gt).mean().item()
+        return vals
+
+
+    def evaluate(self, model):
+        # Gets evaluation metrics for each GT-Reconstructed pair in testing split, and stores them in self.data
+        assert self.gt_path!=None, "Please provide a ground-truth image path directory!"
+        assert self.noisylr_path!=None, "Please provide a noisy low-resolution image path directory!"
+        assert self.mpi_path!=None, "Please provide a path directory for storing model restored images!"
+
+        model.eval()
         
         for metric in self.metrics.keys():
             self.data[metric] = []
 
         for i in range(self.n_eval):
-            gt = jnp.load(self.gt_path+f'{i:06d}.npy')
-            noisylr = jnp.load(self.noisylr_path+f'{i:06d}.npy')
+            gt = jnp.concatenate([jnp.expand_dims(jnp.load(self.gt_path+f'{i:06d}.npy'),0)[:,:,:,jnp.newaxis]]*2,axis=0)
+            noisylr = jnp.concatenate([jnp.expand_dims(jnp.load(self.noisylr_path+f'{i:06d}.npy'),0)[:,:,:,jnp.newaxis]]*2,axis=0)
 
-            mpi = forward(self.model, jnp.expand_dims(noisylr, axis=0)) 
+            mpi = forward(model, jnp.expand_dims(noisylr, axis=0)) 
 
             jnp.save(self.mpi_path + f'{i:06d}.npy', mpi)
 
             for metric in self.metrics.keys():
                 if self.metrics[metric]==None:
                     continue
-
                 cur = self.metrics[metric](gt, mpi)
-
                 self.data[metric].append(cur)
 
+        
 
     def load_pair(self, idx):
             gt = np.asarray(jnp.load(self.gt_path + f'{idx:06d}.npy'))
@@ -85,6 +100,10 @@ class ModelEvaluator:
 
 
     def display(self, n_random=3, n_extreme=3, higher_is_better=None):
+        assert self.gt_path!=None, "Please provide a ground-truth image path directory!"
+        assert self.noisylr_path!=None, "Please provide a noisy low-resolution image path directory!"
+        assert self.mpi_path!=None, "Please provide a path directory for storing model restored images!"
+        
         if higher_is_better is None:
             higher_is_better = {'SSIM': True, 'PSNR': True, 'LPIPS': False}
         
@@ -137,22 +156,3 @@ class ModelEvaluator:
             fig.suptitle(metric)
             plt.tight_layout()
             plt.show()
-
-
-    def summary(self):
-        pass
-
-
-if __name__=='__main__':
-    
-    img_size = (256,256)
-
-    gt_path = './dummy/GT/'
-    noisylr_path = './dummy/NoisyLR/'
-    mpi_path = './dummy/ModelPI/'
-
-    n_eval = len(os.listdir(noisylr_path))
-
-    evaluator = ModelEvaluator(None, metrics, gt_path, noisylr_path, mpi_path, n_eval)
-    evaluator.evalulate()
-    evaluator.display()

@@ -3,6 +3,8 @@ import jax.numpy as jnp
 from flax import nnx
 import optax
 
+from evaluator import ModelEvaluator
+
 # ── Loss ─────────────────────────────────────────────────────────────────
 
 def charbonnier_loss_mean(
@@ -77,15 +79,16 @@ def val_step(
     loss = loss_fn(pred, gt)
     return loss, pred
 
+
 @nnx.jit
-def final_eval_step(
+def metric_val_step(
     model,
+    evaluator: ModelEvaluator,
     x_norm: jax.Array,  # (B, H, W, C) normalised float32 LR image
     gt: jax.Array,      # (B, H*s, W*s, C) float32 HR ground truth
-    loss_fn: callable = mixed_loss
 ) -> tuple[jax.Array, jax.Array]:
-    """Validation step (no gradient computation)."""
+    """Metric-wise validation step (no gradient computation)."""
+    
     pred, _z_d = model(x_norm)
-
-    loss = loss_fn(pred, gt)
-    return loss, pred
+    metrics = evaluator.validate(pred, gt)
+    return metrics, pred
