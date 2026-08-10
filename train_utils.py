@@ -83,10 +83,11 @@ def val_step(
 @nnx.jit
 def metric_val_step(
     model,
-    evaluator: ModelEvaluator,
     x_norm: jax.Array,  # (B, H, W, C) normalised float32 LR image
-    gt: jax.Array,      # (B, H*s, W*s, C) float32 HR ground truth
-) -> tuple[jax.Array, jax.Array]:
+    gt: jax.Array,    # (B, H*s, W*s, C) float32 HR ground truth
+    evaluator: ModelEvaluator = ModelEvaluator(),
+     
+) -> tuple[dict, jax.Array]:
     """Metric-wise validation step (no gradient computation)."""
     
     pred, _z_d = model(x_norm)
