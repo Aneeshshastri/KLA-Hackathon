@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import grain.python as grain
+import grain
 import numpy as np
 
 
@@ -117,12 +117,12 @@ class AddChannelDimension(grain.transforms.Map):
         noisy = element["noisy_lr"]
         gt = element["gt"]
 
-        # H,W -> 1,H,W
+        # H,W -> H,W,1 (NHWC, matches nnx.Conv convention)
         if noisy.ndim == 2:
-            noisy = noisy[None, ...]
+            noisy = noisy[..., None]
 
         if gt.ndim == 2:
-            gt = gt[None, ...]
+            gt = gt[..., None]
 
         return {
             "noisy_lr": noisy,
@@ -141,7 +141,7 @@ def create_dataloader(
     augment=False
 ):
     source = NpyPairDataSource(noisy_dir,gt_dir)
-    sampler = grain.IndexSampler(num_records=len(source),num_epochs=None,shuffle=shuffle,seed=seed,shard_options=grain.NoSharding())
+    sampler = grain.samplers.IndexSampler(num_records=len(source),num_epochs=None,shuffle=shuffle,seed=seed,shard_options=grain.sharding.NoSharding())
     operations = []
     if augment:
         operations.append(RandomAlignedAugment())
