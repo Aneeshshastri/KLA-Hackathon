@@ -22,11 +22,18 @@ def FFT_loss_mean(
 
 
     
-def mixed_loss(pred: jax.Array, target: jax.Array, losses: dict[str,float] = {"FFT loss":FFT_loss_mean,"Charbonnier loss":charbonnier_loss_mean}, weights: list = [0.2,0.8]):
-    loss = 0
-    for i in range(len(losses)):
-        loss += weights[i] * losses[list(losses.keys())[i]](pred, target)
-    return loss
+def mixed_loss(
+    pred: jax.Array, 
+    target: jax.Array, 
+    losses: tuple[callable, ...] = (FFT_loss_mean, charbonnier_loss_mean), 
+    weights: tuple[float, ...] = (0.1, 0.9)
+) -> jax.Array:
+    
+    total_loss = 0.0
+    for loss_fn, weight in zip(losses, weights):
+        total_loss += weight * loss_fn(pred, target)
+        
+    return jnp.asarray(total_loss)
 
 # ── Bicubic upsample helper ─────────────────────────────────────────────
 
@@ -56,13 +63,15 @@ def train_step(
     optimizer: nnx.Optimizer,
     x_norm: jax.Array,  # (B, H, W, C) normalised float32 LR image
     gt: jax.Array,      # (B, H*s, W*s, C) float32 HR ground truth
-) -> jax.Array:
+    loss_fn: callable = mixed_loss
+) -> tuple[jax.Array, dict]:
     """Single training step with Charbonnier loss."""
-    def loss_fn(model_ref):
-        pred, _z_d = model_ref(x_norm)
-        return charbonnier_loss_mean(pred, gt)
 
-    loss, grads = nnx.value_and_grad(loss_fn)(model)
+    def compute_loss(model):
+        pred, _z_d = model(x_norm)
+        return loss_fn(pred, gt)
+
+    loss, grads = nnx.value_and_grad(compute_loss)(model)
     optimizer.update(model, grads)
     return loss
 
