@@ -20,18 +20,20 @@ def LPIPS(gt:jnp.array, im:jnp.array):
     return jnp.reshape(distance, (-1, 1))
 
 def SSIM(gt:jnp.array, im:jnp.array):
-    mean_gt = jnp.mean(gt, axis=[0,1])
-    mean_im = jnp.mean(im, axis=[0,1])
-    var_gt = jnp.var(gt, axis=[0,1])
-    var_im = jnp.var(im, axis=[0,1])
-    cross_var = jnp.mean(gt*im, axis=[0,1]) - jnp.mean(gt, axis=[0,1])*jnp.mean(im, axis=[0,1])
-    ssim = (2*mean_gt*mean_im + 1e-7)*(2*cross_var + 1e-7)/((mean_gt**2 + mean_im**2 + 1e-7)*(var_gt**2 + var_im**2 + 1e-7))
+    mean_gt = jnp.mean(gt, axis=[1,2])
+    mean_im = jnp.mean(im, axis=[1,2])
+    var_gt = jnp.var(gt, axis=[1,2])
+    var_im = jnp.var(im, axis=[1,2])
+    cross_var = jnp.mean(gt*im, axis=[1,2]) - mean_gt * mean_im
+    c1 = (0.01 * 1.0) ** 2
+    c2 = (0.03 * 1.0) ** 2
+    ssim = (2*mean_gt*mean_im + c1)*(2*cross_var + c2)/((mean_gt**2 + mean_im**2 + c1)*(var_gt + var_im + c2))
     return ssim
 
 def PSNR(gt:jnp.array, im:jnp.array):
-    max_pixel = 1
-    mse = jnp.mean((gt-im)**2, axis=[0,1])
-    psnr = 20 * jnp.log10(max_pixel/jnp.sqrt(mse))
+    max_pixel = 1.0
+    mse = jnp.mean((gt-im)**2, axis=[1,2])
+    psnr = 20 * jnp.log10(max_pixel/(jnp.sqrt(mse) + 1e-8))
     return psnr
 
 @nnx.jit
@@ -45,7 +47,7 @@ def forward(model, x):
 #                                 testing/evaluation purposes
 class ModelEvaluator:
     def __init__(self, gt_path=None, noisylr_path=None, mpi_path=None, n_eval=None):
-        self.metrics = {'SSIM':jax.vmap(SSIM), 'PSNR':jax.vmap(PSNR), 'LPIPS':LPIPS}
+        self.metrics = {'SSIM':SSIM, 'PSNR':PSNR, 'LPIPS':LPIPS}
         self.data = {}
         self.gt_path = gt_path
         self.noisylr_path = noisylr_path

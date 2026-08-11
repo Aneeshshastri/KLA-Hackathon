@@ -216,3 +216,74 @@ class RestorationPipeline_2(nnx.Module):
         z_d = self.degradation_encoder(x_norm)
         pred = self.nafnet(x_norm, z_d)   # direct HR prediction — no residual subtraction
         return pred, z_d
+
+
+class HaarDWT(nnx.Module):
+    """
+    Computes a 2D Haar discrete wavelet transform (DWT).
+    Downsamples the spatial resolution by 2x and outputs 4 subbands:
+    LL, LH, HL, HH concatenated along the channel axis.
+    Input: (B, H, W, C)
+    Output: (B, H/2, W/2, 4C)
+    """
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # Strided slicing to get the four corners of each 2x2 patch
+        x00 = x[:, 0::2, 0::2, :]
+        x10 = x[:, 1::2, 0::2, :]
+        x01 = x[:, 0::2, 1::2, :]
+        x11 = x[:, 1::2, 1::2, :]
+        
+        # Haar basis combinations (normalized by 0.5)
+        LL = (x00 + x10 + x01 + x11) * 0.5
+        LH = (x00 + x10 - x01 - x11) * 0.5
+        HL = (x00 - x10 + x01 - x11) * 0.5
+        HH = (x00 - x10 - x01 + x11) * 0.5
+        
+        return jnp.concatenate([LL, LH, HL, HH], axis=-1)
+
+
+class WaveletNAFNet(nnx.Module):
+    def __init__(self, in_channels: int, out_channels: int, hidden_dim: int, num_blocks: int, upsample_scale: int, embed_dim: int, rngs: nnx.Rngs):
+        self.dwt = HaarDWT()
+        
+        # DWT outputs 4 * in_channels
+        self.intro = nnx.Conv(in_channels * 4, hidden_dim, kernel_size=(3, 3), padding='SAME', rngs=rngs)
+
+        self.blocks = nnx.List([NAFBlock(hidden_dim, embed_dim, rngs=rngs) for _ in range(num_blocks)])
+
+        # Since DWT downsamples by 2, we need an upsample_scale that is twice as large to reach the original target
+        total_upsample = upsample_scale * 2
+        self.up_conv = nnx.Conv(
+            hidden_dim, out_channels * (total_upsample ** 2),
+            kernel_size=(3, 3), padding='SAME', rngs=rngs
+        )
+        self.pixel_shuffle = PixelShuffle(total_upsample)
+
+    def __call__(self, x: jax.Array, z_d: jax.Array) -> jax.Array:
+        x = self.dwt(x)
+        x = self.intro(x)
+
+        for block in self.blocks:
+            x = block(x, z_d)
+
+        x = self.up_conv(x)
+        x = self.pixel_shuffle(x)
+
+        return x
+
+
+class RestorationPipeline_Wavelet(nnx.Module):
+    def __init__(self, in_channels, out_channels, hidden_dim, num_blocks, upsample_scale,
+                 deg_hidden_dim, deg_embed_dim, rngs: nnx.Rngs):
+        self.degradation_encoder = DegradationEncoder(
+            in_channels=in_channels, hidden_dim=deg_hidden_dim, embed_dim=deg_embed_dim, rngs=rngs,
+        )
+        self.nafnet = WaveletNAFNet(
+            in_channels=in_channels, out_channels=out_channels, hidden_dim=hidden_dim,
+            num_blocks=num_blocks, upsample_scale=upsample_scale, embed_dim=deg_embed_dim, rngs=rngs,
+        )
+
+    def __call__(self, x_norm: jax.Array) -> tuple[jax.Array, jax.Array]:
+        z_d = self.degradation_encoder(x_norm)
+        pred = self.nafnet(x_norm, z_d)
+        return pred, z_d

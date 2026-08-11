@@ -16,8 +16,8 @@ def charbonnier_loss_mean(
 def FFT_loss_mean(
     pred: jax.Array, target: jax.Array, eps: float = 1e-3,
 ) -> jax.Array:
-    pred_fft = jnp.fft.rfft2(pred, axes=(-3 , -2))
-    target_fft = jnp.fft.rfft2(target, axes=(-3, -2))
+    pred_fft = jnp.fft.rfft2(pred, axes=(-3 , -2), norm="ortho")
+    target_fft = jnp.fft.rfft2(target, axes=(-3, -2), norm="ortho")
     return jnp.mean(jnp.sqrt(jnp.abs(pred_fft - target_fft) ** 2 + eps ** 2))
 
 
@@ -26,7 +26,7 @@ def mixed_loss(
     pred: jax.Array, 
     target: jax.Array, 
     losses: tuple[callable, ...] = (FFT_loss_mean, charbonnier_loss_mean), 
-    weights: tuple[float, ...] = (0.1, 0.9)
+    weights: tuple[float, ...] = (0.3, 0.7)
 ) -> jax.Array:
     
     total_loss = 0.0
