@@ -22,26 +22,8 @@ def LPIPS(gt:jnp.array, im:jnp.array):
     return jnp.reshape(distance, (-1, 1))
 
 def SSIM(gt:jnp.array, im:jnp.array, window_size:int=11):
-    """Compute SSIM, preferring dm_pix (JAX) and falling back to skimage.metrics.
-
-    Args:
-        gt: ground-truth image (JAX array or numpy-like)
-        im: predicted image (JAX array or numpy-like)
-        window_size: window size for skimage fallback
-
-    Returns:
-        SSIM score (dm_pix return type or skimage float)
-    """
-    try:
-        # Prefer dm_pix for JAX-compatible SSIM
         return dm_pix.ssim(im, gt)
-    except Exception:
-        # Fallback to skimage; convert to numpy arrays
-        gt_np = np.array(gt)
-        im_np = np.array(im)
-        multichannel = True if gt_np.ndim == 3 else False
-        ssim = M.structural_similarity(gt_np, im_np, win_size=window_size, gaussian_weights=True, multichannel=multichannel)
-        return ssim
+  
 
 def PSNR(gt:jnp.array, im:jnp.array):
     max_pixel = 1.0
