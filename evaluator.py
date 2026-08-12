@@ -2,6 +2,7 @@ import flax.nnx as nnx
 import jax.numpy as jnp, jax.image as jimg, jax
 import lpips_jax
 import numpy as np
+import skimage.metrics as M
 
 import os
 
@@ -19,15 +20,8 @@ def LPIPS(gt:jnp.array, im:jnp.array):
     distance = lpips_alex(gt, im)
     return jnp.reshape(distance, (-1, 1))
 
-def SSIM(gt:jnp.array, im:jnp.array):
-    mean_gt = jnp.mean(gt, axis=[1,2])
-    mean_im = jnp.mean(im, axis=[1,2])
-    var_gt = jnp.var(gt, axis=[1,2])
-    var_im = jnp.var(im, axis=[1,2])
-    cross_var = jnp.mean(gt*im, axis=[1,2]) - mean_gt * mean_im
-    c1 = (0.01 * 1.0) ** 2
-    c2 = (0.03 * 1.0) ** 2
-    ssim = (2*mean_gt*mean_im + c1)*(2*cross_var + c2)/((mean_gt**2 + mean_im**2 + c1)*(var_gt + var_im + c2))
+def SSIM(gt:jnp.array, im:jnp.array, window_size:int=11):
+    ssim = M.structural_similarity(gt, im, win_size=window_size, gaussian_weights=True)
     return ssim
 
 def PSNR(gt:jnp.array, im:jnp.array):
