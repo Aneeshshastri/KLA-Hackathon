@@ -2,6 +2,7 @@ import flax.nnx as nnx
 import jax.numpy as jnp, jax.image as jimg, jax
 import lpips_jax
 import numpy as np
+import dm_pix
 import skimage.metrics as M
 
 import os
@@ -21,8 +22,8 @@ def LPIPS(gt:jnp.array, im:jnp.array):
     return jnp.reshape(distance, (-1, 1))
 
 def SSIM(gt:jnp.array, im:jnp.array, window_size:int=11):
-    ssim = M.structural_similarity(gt, im, win_size=window_size, gaussian_weights=True)
-    return ssim
+        return dm_pix.ssim(im, gt)
+  
 
 def PSNR(gt:jnp.array, im:jnp.array):
     max_pixel = 1.0
@@ -58,7 +59,7 @@ class ModelEvaluator:
 
         vals = []
         for metric, metric_fn in self.metrics.items():
-            vals.append(metric_fn(gt, pred).mean())
+            vals.append(metric_fn(pred, gt).mean())
         return jnp.stack(vals)
 
 

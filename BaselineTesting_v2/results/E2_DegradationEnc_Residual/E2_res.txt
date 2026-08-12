@@ -1,7 +1,8 @@
                                                                   
-mean SSIM:0.9336124658584595
-mean PSNR:27.565088272094727
-mean LPIPS:0.32164639234542847
+mean SSIM:0.7275608777999878
+mean PSNR:27.56510353088379
+mean LPIPS:0.321615993976593
+
 
 Epoch 000 [train]:   0%|          | 0/180 [00:00<?, ?it/s]
 E0811 23:18:54.896937    2227 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.

@@ -3,61 +3,61 @@ import jax.numpy as jnp
 from flax import nnx
 
 
-# class DegradationEncoder(nnx.Module):
+class DegradationEncoder(nnx.Module):
 
 
-    # def __init__(
-    #     self,
-    #     in_channels: int,
-    #     hidden_dim: int = 16,
-    #     embed_dim: int = 8,
-    #     rngs: nnx.Rngs = None,
-    # ):
-    #     self.conv1 = nnx.Conv(
-    #         in_channels,
-    #         hidden_dim,
-    #         kernel_size=(3, 3),
-    #         strides=(2, 2),
-    #         padding="SAME",
-    #         rngs=rngs,
-    #     )
+    def __init__(
+        self,
+        in_channels: int,
+        hidden_dim: int = 16,
+        embed_dim: int = 8,
+        rngs: nnx.Rngs = None,
+    ):
+        self.conv1 = nnx.Conv(
+            in_channels,
+            hidden_dim,
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            padding="SAME",
+            rngs=rngs,
+        )
 
-    #     self.conv2 = nnx.Conv(
-    #         hidden_dim,
-    #         hidden_dim * 2,
-    #         kernel_size=(3, 3),
-    #         strides=(2, 2),
-    #         padding="SAME",
-    #         rngs=rngs,
-    #     )
+        self.conv2 = nnx.Conv(
+            hidden_dim,
+            hidden_dim * 2,
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            padding="SAME",
+            rngs=rngs,
+        )
 
-    #     self.proj = nnx.Linear(
-    #         hidden_dim * 2,
-    #         embed_dim,
-    #         rngs=rngs,
-    #     )
+        self.proj = nnx.Linear(
+            hidden_dim * 2,
+            embed_dim,
+            rngs=rngs,
+        )
 
-    # def __call__(
-    #     self,
-    #     x: jax.Array,
-    # ) -> jax.Array:
+    def __call__(
+        self,
+        x: jax.Array,
+    ) -> jax.Array:
 
-    #     h = nnx.leaky_relu(
-    #         self.conv1(x),
-    #         negative_slope=0.2,
-    #     )
+        h = nnx.leaky_relu(
+            self.conv1(x),
+            negative_slope=0.2,
+        )
 
-    #     h = nnx.leaky_relu(
-    #         self.conv2(h),
-    #         negative_slope=0.2,
-    #     )
+        h = nnx.leaky_relu(
+            self.conv2(h),
+            negative_slope=0.2,
+        )
 
-    #     pooled = jnp.mean(
-    #         h,
-    #         axis=(1, 2),
-    #     )
+        pooled = jnp.mean(
+            h,
+            axis=(1, 2),
+        )
 
-    #     return self.proj(pooled)
+        return self.proj(pooled)
 
 class BlindDFCTokenEncoder(nnx.Module):
 
@@ -998,8 +998,6 @@ class RestorationPipeline_E5(nnx.Module):
             in_channels=in_channels,
             hidden_dim=deg_hidden_dim,
             embed_dim=deg_embed_dim,
-            num_bands=4,
-            token_dim=8,
             rngs=rngs,
         )
 
@@ -1082,7 +1080,7 @@ class RestorationPipeline_E5(nnx.Module):
 
         return pred, z_d
 
-class RestorationPipeline_E5(nnx.Module):
+class RestorationPipeline_E6(nnx.Module):
 
     def __init__(
         self,
@@ -1170,7 +1168,7 @@ class RestorationPipeline_E5(nnx.Module):
 
         residual = jnp.sum(
             expert_residuals
-            * routing[:, :, None, None, None, None],
+            * routing[:, :, None, None, None],
             axis=1,
         )
 
