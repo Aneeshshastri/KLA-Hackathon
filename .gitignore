@@ -225,3 +225,4 @@ train/
 #models
 *.pth
 *.msgpack
+data/
