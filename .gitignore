@@ -221,3 +221,7 @@ __marimo__/
 checkpoints/
 NoisyLR/
 train/
+
+#models
+*.pth
+*.msgpack
