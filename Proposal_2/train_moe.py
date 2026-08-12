@@ -21,6 +21,8 @@ os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.4'
 os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 
 import sys
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 import time
 import argparse
 from pathlib import Path
@@ -99,7 +101,7 @@ def build_checkpoint_manager(ckpt_dir, max_to_keep=3):
         max_to_keep=max_to_keep,
         save_interval_steps=1,
         create=True,
-        enable_async_checkpointing=True,
+        enable_async_checkpointing=False,
     )
     ckpt_dir = Path(ckpt_dir).resolve()
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -207,6 +209,7 @@ def main():
                 optax.clip_by_global_norm(args.grad_clip),
                 optax.adamw(learning_rate=args.lr, weight_decay=args.weight_decay),
             ),
+            wrt=nnx.Param,
         )
     else:
         # Separate optimizers: router at full LR, experts at expert_lr
@@ -237,10 +240,9 @@ def main():
 
         # Train
         epoch_train_losses = []
-        pbar = tqdm(range(train_steps), desc=f"Epoch {epoch:03d} [train]", leave=False)
-        for step in pbar:
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch:03d} [train]", leave=False)
+        for step, raw_batch in enumerate(pbar):
             key, subkey = jax.random.split(key)
-            raw_batch = next(train_loader)
             noisy = raw_batch["noisy_lr"].astype(jnp.float32)
             gt = raw_batch["gt"].astype(jnp.float32)
             x_norm = normalizer_fn(noisy, axis=(1, 2))
@@ -255,9 +257,8 @@ def main():
         # Validate
         epoch_val_losses = []
         all_decisions = []
-        for _ in tqdm(range(val_steps), desc=f"Epoch {epoch:03d} [val]  ", leave=False):
+        for raw_batch in tqdm(val_loader, desc=f"Epoch {epoch:03d} [val]  ", leave=False):
             key, subkey = jax.random.split(key)
-            raw_batch = next(val_loader)
             noisy = raw_batch["noisy_lr"].astype(jnp.float32)
             gt = raw_batch["gt"].astype(jnp.float32)
             x_norm = normalizer_fn(noisy, axis=(1, 2))

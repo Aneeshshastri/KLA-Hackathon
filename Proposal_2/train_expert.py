@@ -9,10 +9,12 @@ Usage:
 """
 
 import os
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.4'
-os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
+#os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.4'
+#os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 
 import sys
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 import time
 import argparse
 from pathlib import Path
@@ -71,7 +73,7 @@ def build_checkpoint_manager(ckpt_dir, max_to_keep=3):
         max_to_keep=max_to_keep,
         save_interval_steps=1,
         create=True,
-        enable_async_checkpointing=True,
+        enable_async_checkpointing=False,
     )
     ckpt_dir = Path(ckpt_dir).resolve()
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -99,7 +101,7 @@ def main():
     parser.add_argument("--expert-type", required=True, choices=["upsample", "deblur", "gaussian", "speckle"])
     parser.add_argument("--data-dir", required=True, help="Path to isolated dataset")
     parser.add_argument("--epochs", type=int, default=40)
-    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=3e-4)
     parser.add_argument("--grad-clip", type=float, default=1.0)
@@ -166,6 +168,7 @@ def main():
             optax.clip_by_global_norm(args.grad_clip),
             optax.adamw(learning_rate=schedule, weight_decay=args.weight_decay),
         ),
+        wrt=nnx.Param,
     )
 
     ckpt_manager = build_checkpoint_manager(args.ckpt_dir, max_to_keep=3)
@@ -183,9 +186,8 @@ def main():
 
         # Train
         epoch_train_losses = []
-        pbar = tqdm(range(train_steps), desc=f"Epoch {epoch:03d} [train]", leave=False)
-        for step in pbar:
-            raw_batch = next(train_loader)
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch:03d} [train]", leave=False)
+        for step, raw_batch in enumerate(pbar):
             noisy = raw_batch["noisy_lr"].astype(jnp.float32)
             gt = raw_batch["gt"].astype(jnp.float32)
             x_norm = normalizer_fn(noisy, axis=(1, 2))
@@ -199,8 +201,7 @@ def main():
 
         # Validate
         epoch_val_losses = []
-        for _ in tqdm(range(val_steps), desc=f"Epoch {epoch:03d} [val]  ", leave=False):
-            raw_batch = next(val_loader)
+        for raw_batch in tqdm(val_loader, desc=f"Epoch {epoch:03d} [val]  ", leave=False):
             noisy = raw_batch["noisy_lr"].astype(jnp.float32)
             gt = raw_batch["gt"].astype(jnp.float32)
             x_norm = normalizer_fn(noisy, axis=(1, 2))

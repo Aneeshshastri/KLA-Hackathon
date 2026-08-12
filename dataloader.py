@@ -24,9 +24,9 @@ class NpyPairDataSource(grain.sources.RandomAccessDataSource):
         self.noisy_files = list(noisy_files)
         self.gt_files = list(gt_files)
         
-        # Load everything once
-        self.noisy_data = np.stack([np.load(file) for file in self.noisy_files])
-        self.gt_data = np.stack([np.load(file) for file in self.gt_files])
+        # Load everything once as a list of numpy arrays to support mixed resolutions
+        self.noisy_data = [np.load(file) for file in self.noisy_files]
+        self.gt_data = [np.load(file) for file in self.gt_files]
         
     def __len__(self):
         return len(self.noisy_data)
@@ -96,10 +96,15 @@ class RandomAlignedAugment(grain.transforms.RandomMap):
 
         # Small translation
         if rng.random() < self.p_translate:
-            dx = rng.integers(-self.max_translation,self.max_translation + 1)
-            dy = rng.integers(-self.max_translation,self.max_translation + 1)
-            noisy = translate_reflect(noisy,dx,dy)
-            gt = translate_reflect(gt,dx,dy)
+            dx = rng.integers(-self.max_translation, self.max_translation + 1)
+            dy = rng.integers(-self.max_translation, self.max_translation + 1)
+            
+            # If gt is larger than noisy (e.g. upsample dataset), scale the translation
+            scale_y = gt.shape[0] // noisy.shape[0]
+            scale_x = gt.shape[1] // noisy.shape[1]
+            
+            noisy = translate_reflect(noisy, dx, dy)
+            gt = translate_reflect(gt, dx * scale_x, dy * scale_y)
             
         # Ensure positive/standard strides
         noisy = np.ascontiguousarray(noisy)
@@ -111,22 +116,83 @@ class RandomAlignedAugment(grain.transforms.RandomMap):
         }
 
 
-# Add Channel Dimension
-class AddChannelDimension(grain.transforms.Map):
-    def map(self, element):
-        noisy = element["noisy_lr"]
-        gt = element["gt"]
+# Custom DataLoader that handles dynamic shape grouping
+class GroupedDataLoader:
+    def __init__(self, source, batch_size, shuffle, seed, augment):
+        self.source = source
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.seed = seed
+        self.augment = augment
+        self.rng = np.random.default_rng(seed)
+        
+        # Group indices by noisy resolution
+        self.indices_by_shape = {}
+        for idx in range(len(source)):
+            shape = source.noisy_data[idx].shape[:2]
+            if shape not in self.indices_by_shape:
+                self.indices_by_shape[shape] = []
+            self.indices_by_shape[shape].append(idx)
+            
+        # Get count of total batches we will produce
+        self.total_batches = 0
+        for shape, indices in self.indices_by_shape.items():
+            self.total_batches += len(indices) // batch_size
 
-        # H,W -> H,W,1 (NHWC, matches nnx.Conv convention)
-        if noisy.ndim == 2:
-            noisy = noisy[..., None]
+    def __len__(self):
+        return self.total_batches
 
-        if gt.ndim == 2:
-            gt = gt[..., None]
+    def __iter__(self):
+        # Create batches
+        batches = []
+        for shape, indices in self.indices_by_shape.items():
+            indices_copy = list(indices)
+            if self.shuffle:
+                self.rng.shuffle(indices_copy)
+            
+            # Group into batches (drop remainder per group)
+            for i in range(0, len(indices_copy) - self.batch_size + 1, self.batch_size):
+                batches.append(indices_copy[i:i+self.batch_size])
+                
+        if self.shuffle:
+            self.rng.shuffle(batches)
+            
+        self.current_batch_idx = 0
+        self.batches = batches
+        return self
 
+    def __next__(self):
+        if self.current_batch_idx >= len(self.batches):
+            raise StopIteration
+            
+        batch_indices = self.batches[self.current_batch_idx]
+        self.current_batch_idx += 1
+        
+        batch_noisy = []
+        batch_gt = []
+        
+        augmenter = RandomAlignedAugment() if self.augment else None
+        
+        for idx in batch_indices:
+            element = self.source[idx]
+            if augmenter:
+                element = augmenter.random_map(element, self.rng)
+                
+            noisy = element["noisy_lr"]
+            gt = element["gt"]
+            
+            # Add channel dimensions manually
+            if noisy.ndim == 2:
+                noisy = noisy[..., None]
+            if gt.ndim == 2:
+                gt = gt[..., None]
+                
+            batch_noisy.append(noisy)
+            batch_gt.append(gt)
+            
         return {
-            "noisy_lr": noisy,
-            "gt": gt
+            "noisy_lr": np.stack(batch_noisy),
+            "gt": np.stack(batch_gt)
         }
 
 
@@ -141,17 +207,5 @@ def create_src_dataloader(
     augment=False
 ):
     source = NpyPairDataSource(noisy_files, gt_files)
-    sampler = grain.samplers.IndexSampler(num_records=len(source),num_epochs=None,shuffle=shuffle,seed=seed,shard_options=grain.sharding.NoSharding())
-    operations = []
-    if augment:
-        operations.append(RandomAlignedAugment())
-
-    operations.append(AddChannelDimension())
-    operations.append(grain.transforms.Batch(batch_size=batch_size,drop_remainder=True))
-
-    return source,grain.DataLoader(
-        data_source=source,
-        sampler=sampler,
-        operations=operations,
-        worker_count=worker_count
-    ),
+    loader = GroupedDataLoader(source, batch_size, shuffle, seed, augment)
+    return source, loader

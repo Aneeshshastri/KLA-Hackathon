@@ -226,3 +226,4 @@ train/
 *.pth
 *.msgpack
 data/
+ckpt/

@@ -144,93 +144,88 @@ class IterativeMoE(nnx.Module):
     ) -> tuple[jax.Array, jax.Array]:
         """
         Forward pass: 4-step iterative refinement.
-
-        Args:
-            x: (B, 128, 128, 1) degraded input
-            key: PRNG key for Gumbel sampling
-            tau: Gumbel temperature
-            deterministic: if True, use argmax instead of Gumbel
-
-        Returns:
-            (output, routing_decisions)
-            output: (B, 256, 256, 1) restored image
-            routing_decisions: (B, num_steps) selected expert indices
         """
         batch_size = x.shape[0]
-        all_decisions = []
 
-        # Track whether upsample has been used (per batch element)
-        upsample_used = jnp.zeros((batch_size,), dtype=jnp.bool_)
+        # We must map over the batch dimension to use lax.cond effectively
+        @jax.vmap
+        def process_single(x_single, key_single):
+            # State: (x_128, x_256, is_256)
+            x_128 = x_single
+            x_256 = jnp.zeros((256, 256, 1), dtype=x_single.dtype)
+            is_256 = jnp.array(False, dtype=jnp.bool_)
+            
+            all_decisions = []
 
-        for step in range(self.num_steps):
-            key, subkey = jax.random.split(key)
+            for step in range(self.num_steps):
+                key_single, subkey = jax.random.split(key_single)
 
-            # Get router logits
-            logits = self.router(x)  # (B, 4)
+                # Router accepts both shapes (fully convolutional + global pool)
+                # We expand dims to (1, H, W, C) for the router
+                logits_128 = self.router(x_128[None])[0]
+                logits_256 = self.router(x_256[None])[0]
+                logits = jnp.where(is_256, logits_256, logits_128)
 
-            # Mask out upsample expert if already used
-            mask = jnp.where(upsample_used, -1e9, 0.0)
-            logits = logits.at[:, EXPERT_UPSAMPLE].add(mask)
+                # Mask out upsample expert if already used
+                mask = jnp.where(is_256, -1e9, 0.0)
+                logits = logits.at[EXPERT_UPSAMPLE].add(mask)
 
-            # Hard routing
-            if deterministic:
-                weights = argmax_hard(logits)  # (B, 4)
-            else:
-                weights = gumbel_softmax_hard(logits, subkey, tau=tau)  # (B, 4)
+                # Hard routing
+                if deterministic:
+                    weights = argmax_hard(logits)
+                else:
+                    weights = gumbel_softmax_hard(logits, subkey, tau=tau)
+                    
+                selected = jnp.argmax(weights, axis=-1)
+                all_decisions.append(selected)
 
-            # Get selected expert index per batch element
-            selected = jnp.argmax(weights, axis=-1)  # (B,)
-            all_decisions.append(selected)
+                def do_256():
+                    # Run same-res experts on x_256 (expanded to batch=1)
+                    out_deblur = self.expert_deblur(x_256[None])[0]
+                    out_gaussian = self.expert_gaussian(x_256[None])[0]
+                    out_speckle = self.expert_speckle(x_256[None])[0]
+                    
+                    same_res = jnp.stack([out_deblur, out_gaussian, out_speckle], axis=-1)
+                    mapped_idx = jnp.clip(selected - 1, 0, 2)
+                    new_x_256 = same_res[..., mapped_idx]
+                    return x_128, new_x_256, jnp.array(True, dtype=jnp.bool_)
 
-            # Check if any batch element selected upsample
-            chose_upsample = (selected == EXPERT_UPSAMPLE)
+                def do_128():
+                    # Run same-res experts on x_128
+                    out_deblur = self.expert_deblur(x_128[None])[0]
+                    out_gaussian = self.expert_gaussian(x_128[None])[0]
+                    out_speckle = self.expert_speckle(x_128[None])[0]
+                    
+                    same_res = jnp.stack([out_deblur, out_gaussian, out_speckle], axis=-1)
+                    mapped_idx = jnp.clip(selected - 1, 0, 2)
+                    new_x_128_same = same_res[..., mapped_idx]
+                    
+                    # Run upsample expert
+                    out_up = self.expert_upsample(x_128[None])[0]
+                    
+                    is_up = (selected == EXPERT_UPSAMPLE)
+                    
+                    new_x_128 = jnp.where(is_up, x_128, new_x_128_same)
+                    new_x_256 = jnp.where(is_up, out_up, x_256)
+                    return new_x_128, new_x_256, is_up
 
-            # We need to handle the case where some batch elements select
-            # upsample and others don't. Since jax.lax.switch doesn't handle
-            # per-element branching, we run all possible experts and select.
-            #
-            # For same-resolution experts, output has same shape as input.
-            # For upsample expert, output is 2x input.
-            # We handle this by running experts separately for the two cases.
+                x_128, x_256, is_256 = jax.lax.cond(is_256, do_256, do_128)
 
-            # Run same-resolution experts
-            out_deblur = self.expert_deblur(x)
-            out_gaussian = self.expert_gaussian(x)
-            out_speckle = self.expert_speckle(x)
+            decisions_stack = jnp.stack(all_decisions, axis=0)
+            
+            # The final result must be 256x256. 
+            # If for some reason upsample was NEVER chosen, we fallback to bicubic 
+            # (though training should heavily penalize this)
+            final_out = jnp.where(
+                is_256, 
+                x_256, 
+                jax.image.resize(x_128, (256, 256, 1), method="bicubic")
+            )
+            return final_out, decisions_stack
 
-            # Stack same-res outputs: (B, H, W, 1, 3)
-            same_res_outputs = jnp.stack([out_deblur, out_gaussian, out_speckle], axis=-1)
-
-            # For each batch element, select the same-res output
-            # Map expert indices: deblur=1→0, gaussian=2→1, speckle=3→2
-            same_res_idx = jnp.clip(selected - 1, 0, 2)  # (B,)
-            same_res_selection = jax.vmap(lambda o, i: o[..., i])(same_res_outputs, same_res_idx)
-
-            # Run upsample expert
-            out_upsample = self.expert_upsample(x)  # (B, 2H, 2W, 1)
-
-            # If upsample was chosen, use upsample output and resize same_res to match
-            # If not chosen, use same_res output
-            if step == 0 or not jnp.any(upsample_used):
-                # Could be first use of upsample
-                # Resize same_res_selection to match upsample output shape if needed
-                target_shape = out_upsample.shape
-                same_res_resized = jax.image.resize(
-                    same_res_selection, target_shape, method="bilinear"
-                )
-
-                # Per-element selection: upsample if chose_upsample, else same_res
-                chose_up_broadcast = chose_upsample[:, None, None, None]
-                x = jnp.where(chose_up_broadcast, out_upsample, same_res_resized)
-            else:
-                # Upsample already used, all experts run at current resolution
-                x = same_res_selection
-
-            # Update upsample tracking
-            upsample_used = upsample_used | chose_upsample
-
-        routing_decisions = jnp.stack(all_decisions, axis=-1)  # (B, num_steps)
-        return x, routing_decisions
+        keys = jax.random.split(key, batch_size)
+        out, decisions = process_single(x, keys)
+        return out, decisions
 
 
 # ─── Quick shape test ────────────────────────────────────────────────────

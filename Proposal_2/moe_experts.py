@@ -22,9 +22,11 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 
-# Import RestorationPipeline_E3 from BaselineTesting_V2
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "BaselineTesting_V2"))
-from BaselineTesting_V2.model_util import RestorationPipeline_E3
+
+import BaselineTesting_v2.model_util as model_util
+if not hasattr(model_util, "DegradationEncoder"):
+    model_util.DegradationEncoder = model_util.BlindDFCTokenEncoder
+from BaselineTesting_v2.model_util import RestorationPipeline_E3
 
 # ─── Expert Configuration ────────────────────────────────────────────────
 
