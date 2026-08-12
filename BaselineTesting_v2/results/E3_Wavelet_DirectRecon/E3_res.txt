@@ -1,0 +1,121 @@
+                                                                  
+mean SSIM:0.9302912950515747
+mean PSNR:27.29938316345215
+mean LPIPS:0.34461045265197754
+
+
+Epoch 000 [train]:   0%|          | 0/180 [00:00<?, ?it/s]
+E0811 23:55:13.910406    1639 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+E0811 23:55:14.090319    1639 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+E0811 23:55:14.193772    1639 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+                                                                                    
+[epoch 000] train_loss=0.47983  val_loss=0.12877  time=92.8s
+                                                                                    
+[epoch 001] train_loss=0.07843  val_loss=0.05443  time=11.6s
+                                                                                    
+[epoch 002] train_loss=0.04779  val_loss=0.04389  time=12.2s
+                                                                                    
+[epoch 003] train_loss=0.04158  val_loss=0.04008  time=14.0s
+                                                                                    
+[epoch 004] train_loss=0.03920  val_loss=0.03871  time=11.4s
+  [checkpoint] saved at step 900 (epoch 4)
+                                                                                    
+[epoch 005] train_loss=0.03764  val_loss=0.03688  time=14.6s
+                                                                                    
+[epoch 006] train_loss=0.03638  val_loss=0.03707  time=11.4s
+                                                                                    
+[epoch 007] train_loss=0.03574  val_loss=0.03497  time=11.5s
+                                                                                    
+[epoch 008] train_loss=0.03427  val_loss=0.03650  time=14.0s
+                                                                                    
+[epoch 009] train_loss=0.03345  val_loss=0.03426  time=11.4s
+  [checkpoint] saved at step 1800 (epoch 9)
+                                                                                    
+[epoch 010] train_loss=0.03306  val_loss=0.03255  time=12.1s
+                                                                                    
+[epoch 011] train_loss=0.03239  val_loss=0.03237  time=14.6s
+                                                                                    
+[epoch 012] train_loss=0.03158  val_loss=0.03154  time=11.3s
+                                                                                    
+[epoch 013] train_loss=0.03123  val_loss=0.03120  time=11.0s
+                                                                                    
+[epoch 014] train_loss=0.03067  val_loss=0.03081  time=14.4s
+  [checkpoint] saved at step 2700 (epoch 14)
+                                                                                    
+[epoch 015] train_loss=0.03054  val_loss=0.03057  time=12.6s
+                                                                                    
+[epoch 016] train_loss=0.03037  val_loss=0.03068  time=14.0s
+                                                                                    
+[epoch 017] train_loss=0.03021  val_loss=0.03042  time=10.8s
+                                                                                    
+[epoch 018] train_loss=0.03008  val_loss=0.03010  time=11.4s
+                                                                                    
+[epoch 019] train_loss=0.02988  val_loss=0.02996  time=14.2s
+  [checkpoint] saved at step 3600 (epoch 19)
+                                                                                    
+[epoch 020] train_loss=0.02969  val_loss=0.02998  time=12.3s
+                                                                                    
+[epoch 021] train_loss=0.02959  val_loss=0.02974  time=11.6s
+                                                                                    
+[epoch 022] train_loss=0.02946  val_loss=0.02968  time=15.5s
+                                                                                    
+[epoch 023] train_loss=0.02941  val_loss=0.02950  time=9.7s
+                                                                                    
+[epoch 024] train_loss=0.02929  val_loss=0.02951  time=8.9s
+  [checkpoint] saved at step 4500 (epoch 24)
+                                                                                    
+[epoch 025] train_loss=0.02916  val_loss=0.02934  time=12.7s
+                                                                                    
+[epoch 026] train_loss=0.02912  val_loss=0.02925  time=11.0s
+                                                                                    
+[epoch 027] train_loss=0.02900  val_loss=0.02922  time=11.6s
+                                                                                    
+[epoch 028] train_loss=0.02891  val_loss=0.02908  time=14.5s
+                                                                                    
+[epoch 029] train_loss=0.02886  val_loss=0.02909  time=11.5s
+  [checkpoint] saved at step 5400 (epoch 29)
+                                                                                    
+[epoch 030] train_loss=0.02880  val_loss=0.02898  time=14.6s
+                                                                                    
+[epoch 031] train_loss=0.02875  val_loss=0.02894  time=11.6s
+                                                                                    
+[epoch 032] train_loss=0.02874  val_loss=0.02892  time=11.2s
+                                                                                    
+[epoch 033] train_loss=0.02867  val_loss=0.02898  time=14.2s
+                                                                                    
+[epoch 034] train_loss=0.02865  val_loss=0.02888  time=11.1s
+  [checkpoint] saved at step 6300 (epoch 34)
+                                                                                    
+[epoch 035] train_loss=0.02863  val_loss=0.02885  time=12.0s
+                                                                                    
+[epoch 036] train_loss=0.02862  val_loss=0.02885  time=14.2s
+                                                                                    
+[epoch 037] train_loss=0.02861  val_loss=0.02884  time=10.9s
+                                                                                    
+[epoch 038] train_loss=0.02860  val_loss=0.02884  time=11.4s
+                                                                                    
+[epoch 039] train_loss=0.02861  val_loss=0.02883  time=14.0s
+  [checkpoint] saved at step 7200 (epoch 39)
+                                                                                    
+[epoch 040] train_loss=0.02861  val_loss=0.02883  time=12.2s
+                                                                                    
+[epoch 041] train_loss=0.02861  val_loss=0.02884  time=11.3s
+                                                                                    
+[epoch 042] train_loss=0.02860  val_loss=0.02884  time=14.4s
+                                                                                    
+[epoch 043] train_loss=0.02860  val_loss=0.02883  time=11.1s
+                                                                                    
+[epoch 044] train_loss=0.02860  val_loss=0.02884  time=13.8s
+  [checkpoint] saved at step 8100 (epoch 44)
+                                                                                    
+[epoch 045] train_loss=0.02860  val_loss=0.02883  time=12.0s
+                                                                                    
+[epoch 046] train_loss=0.02860  val_loss=0.02883  time=11.3s
+                                                                                    
+[epoch 047] train_loss=0.02860  val_loss=0.02883  time=11.4s
+                                                                                    
+[epoch 048] train_loss=0.02860  val_loss=0.02883  time=14.6s
+                                                                                    
+[epoch 049] train_loss=0.02860  val_loss=0.02883  time=12.0s
+  [checkpoint] saved at step 9000 (epoch 49)
+[done] training complete.
