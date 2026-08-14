@@ -3,7 +3,6 @@ import jax.numpy as jnp, jax.image as jimg, jax
 import lpips_jax
 import numpy as np
 import dm_pix
-import skimage.metrics as M
 
 import os
 
@@ -22,7 +21,7 @@ def LPIPS(gt:jnp.array, im:jnp.array):
     return jnp.reshape(distance, (-1, 1))
 
 def SSIM(gt:jnp.array, im:jnp.array, window_size:int=11):
-        return dm_pix.ssim(im, gt)
+    return dm_pix.ssim(im, gt)
   
 
 def PSNR(gt:jnp.array, im:jnp.array):

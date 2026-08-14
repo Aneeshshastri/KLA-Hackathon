@@ -6,6 +6,16 @@ import optax
 from evaluator import ModelEvaluator
 
 # ── Loss ─────────────────────────────────────────────────────────────────
+def local_variance(x, kernel_size=5):
+    pad = kernel_size // 2
+    x_padded = jnp.pad(x, ((0,0),(pad,pad),(pad,pad),(0,0)), mode='reflect')
+    mean = jax.lax.reduce_window(x_padded, 0., jax.lax.add, (1,kernel_size,kernel_size,1), (1,1,1,1), 'VALID') / (kernel_size**2)
+    sq_mean = jax.lax.reduce_window(x_padded*2, 0., jax.lax.add, (1,kernel_size,kernel_size,1), (1,1,1,1), 'VALID') / (kernel_size*2)
+    return sq_mean - mean**2
+
+def variance_matching_loss(pred, target, kernel_size=5):
+    return jnp.mean(jnp.abs(local_variance(pred, kernel_size) - local_variance(target, kernel_size)))
+
 
 def charbonnier_loss_mean(
     pred: jax.Array, target: jax.Array, eps: float = 1e-3,
@@ -25,8 +35,8 @@ def FFT_loss_mean(
 def mixed_loss(
     pred: jax.Array, 
     target: jax.Array, 
-    losses: tuple[callable, ...] = (FFT_loss_mean, charbonnier_loss_mean), 
-    weights: tuple[float, ...] = (0.3, 0.7)
+    losses: tuple[callable, ...] = (FFT_loss_mean, charbonnier_loss_mean,variance_matching_loss), 
+    weights: tuple[float, ...] = (0.2, 0.6, 0.2),
 ) -> jax.Array:
     
     total_loss = 0.0
