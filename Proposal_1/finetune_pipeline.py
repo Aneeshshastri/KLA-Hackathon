@@ -7,13 +7,15 @@ from flax import serialization
 from nafnet_jax import StandardNAFNet, NAFBlock
 
 class UpsampleTail(nnx.Module):
-    def __init__(self, c_in: int, scale: int, rngs: nnx.Rngs):
+    def __init__(self, c_in: int, c_hidden: int, scale: int, rngs: nnx.Rngs):
         self.scale = scale
-        self.block1 = NAFBlock(c=c_in, rngs=rngs)
-        self.block2 = NAFBlock(c=c_in, rngs=rngs)
-        self.up_conv = nnx.Conv(c_in, c_in * (scale ** 2), kernel_size=(3, 3), padding=1, rngs=rngs)
+        self.intro = nnx.Conv(c_in, c_hidden, kernel_size=(3, 3), padding=1, rngs=rngs)
+        self.block1 = NAFBlock(c=c_hidden, rngs=rngs)
+        self.block2 = NAFBlock(c=c_hidden, rngs=rngs)
+        self.up_conv = nnx.Conv(c_hidden, c_hidden * (scale ** 2), kernel_size=(3, 3), padding=1, rngs=rngs)
         
     def __call__(self, x):
+        x = self.intro(x)
         x = self.block1(x)
         x = self.block2(x)
         x = self.up_conv(x)
@@ -41,10 +43,10 @@ class RestorationPipeline_Finetune(nnx.Module):
         )
         
         # 2. Untrained Upsampling Tail
-        # We need to map the 3-channel features back to the required output space
+        # We take the 3-channel denoised image, expand it to 64 channels,
         # and do a 2x upsampling via PixelShuffle.
-        self.tail_blocks = UpsampleTail(c_in=3, scale=2, rngs=rngs)
-        self.final_proj = nnx.Conv(3, 1, kernel_size=(3, 3), padding=1, rngs=rngs)
+        self.tail_blocks = UpsampleTail(c_in=3, c_hidden=64, scale=2, rngs=rngs)
+        self.final_proj = nnx.Conv(64, 1, kernel_size=(3, 3), padding=1, rngs=rngs)
         
     def __call__(self, x):
         """
@@ -53,7 +55,7 @@ class RestorationPipeline_Finetune(nnx.Module):
         # 1. Adapt 1-channel input to 3-channel (copy along channel dim)
         x_3ch = jnp.repeat(x, 3, axis=-1)
         
-        # 2. Forward pass through Pre-trained NAFNet
+        # 2. Forward pass through Pre-trained NAFNet (outputs 3-channel denoised image)
         features = self.nafnet(x_3ch)
         
         # 3. Forward pass through Untrained Upsampling Tail (2x resolution)
