@@ -18,7 +18,7 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 
-from BaselineTesting_v2.model_util import RestorationPipeline_E6
+from BaselineTesting_v2.baseline_models import RestorationPipeline_E6
 
 # ─── Expert Configuration ────────────────────────────────────────────────
 
