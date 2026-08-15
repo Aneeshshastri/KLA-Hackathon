@@ -101,7 +101,7 @@ def main():
     parser.add_argument("--expert-type", required=True, choices=["upsample", "deblur", "gaussian", "speckle"])
     parser.add_argument("--data-dir", required=True, help="Path to isolated dataset")
     parser.add_argument("--epochs", type=int, default=40)
-    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=3e-4)
     parser.add_argument("--grad-clip", type=float, default=1.0)
