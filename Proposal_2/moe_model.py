@@ -147,21 +147,13 @@ class IterativeMoE(nnx.Module):
         """
         batch_size = x.shape[0]
 
-        # We must map over the batch dimension to use lax.cond effectively
         @jax.vmap
         def process_single(x_single, key_single):
-            # State: (x_128, x_256, is_256)
-            x_128 = x_single
-            x_256 = jnp.zeros((256, 256, 1), dtype=x_single.dtype)
-            is_256 = jnp.array(False, dtype=jnp.bool_)
-            
-            all_decisions = []
+            @nnx.remat
+            def scan_body(carry, _):
+                x_128, x_256, is_256, key_curr = carry
+                key_curr, subkey = jax.random.split(key_curr)
 
-            for step in range(self.num_steps):
-                key_single, subkey = jax.random.split(key_single)
-
-                # Router accepts both shapes (fully convolutional + global pool)
-                # We expand dims to (1, H, W, C) for the router
                 logits_128 = self.router(x_128[None])[0]
                 logits_256 = self.router(x_256[None])[0]
                 logits = jnp.where(is_256, logits_256, logits_128)
@@ -170,56 +162,55 @@ class IterativeMoE(nnx.Module):
                 mask = jnp.where(is_256, -1e9, 0.0)
                 logits = logits.at[EXPERT_UPSAMPLE].add(mask)
 
-                # Hard routing
                 if deterministic:
                     weights = argmax_hard(logits)
                 else:
                     weights = gumbel_softmax_hard(logits, subkey, tau=tau)
                     
                 selected = jnp.argmax(weights, axis=-1)
-                all_decisions.append(selected)
 
                 def do_256():
-                    # Run same-res experts on x_256 (expanded to batch=1)
-                    out_deblur = self.expert_deblur(x_256[None])[0]
-                    out_gaussian = self.expert_gaussian(x_256[None])[0]
-                    out_speckle = self.expert_speckle(x_256[None])[0]
-                    
-                    same_res = jnp.stack([out_deblur, out_gaussian, out_speckle], axis=-1)
-                    mapped_idx = jnp.clip(selected - 1, 0, 2)
-                    new_x_256 = same_res[..., mapped_idx]
+                    branches = [
+                        lambda: x_256, # 0: upsample (shouldn't happen)
+                        lambda: self.expert_deblur(x_256[None])[0],
+                        lambda: self.expert_gaussian(x_256[None])[0],
+                        lambda: self.expert_speckle(x_256[None])[0],
+                    ]
+                    new_x_256 = jax.lax.switch(selected, branches)
                     return x_128, new_x_256, jnp.array(True, dtype=jnp.bool_)
 
                 def do_128():
-                    # Run same-res experts on x_128
-                    out_deblur = self.expert_deblur(x_128[None])[0]
-                    out_gaussian = self.expert_gaussian(x_128[None])[0]
-                    out_speckle = self.expert_speckle(x_128[None])[0]
-                    
-                    same_res = jnp.stack([out_deblur, out_gaussian, out_speckle], axis=-1)
-                    mapped_idx = jnp.clip(selected - 1, 0, 2)
-                    new_x_128_same = same_res[..., mapped_idx]
-                    
-                    # Run upsample expert
-                    out_up = self.expert_upsample(x_128[None])[0]
-                    
-                    is_up = (selected == EXPERT_UPSAMPLE)
-                    
-                    new_x_128 = jnp.where(is_up, x_128, new_x_128_same)
-                    new_x_256 = jnp.where(is_up, out_up, x_256)
-                    return new_x_128, new_x_256, is_up
+                    branches = [
+                        lambda: (x_128, self.expert_upsample(x_128[None])[0], jnp.array(True, dtype=jnp.bool_)),
+                        lambda: (self.expert_deblur(x_128[None])[0], x_256, jnp.array(False, dtype=jnp.bool_)),
+                        lambda: (self.expert_gaussian(x_128[None])[0], x_256, jnp.array(False, dtype=jnp.bool_)),
+                        lambda: (self.expert_speckle(x_128[None])[0], x_256, jnp.array(False, dtype=jnp.bool_)),
+                    ]
+                    new_x_128, new_x_256, new_is_256 = jax.lax.switch(selected, branches)
+                    return new_x_128, new_x_256, new_is_256
 
-                x_128, x_256, is_256 = jax.lax.cond(is_256, do_256, do_128)
+                new_x_128, new_x_256, new_is_256 = jax.lax.cond(is_256, do_256, do_128)
+                
+                new_carry = (new_x_128, new_x_256, new_is_256, key_curr)
+                return new_carry, selected
 
-            decisions_stack = jnp.stack(all_decisions, axis=0)
+            init_carry = (
+                x_single, 
+                jnp.zeros((256, 256, 1), dtype=x_single.dtype), 
+                jnp.array(False, dtype=jnp.bool_),
+                key_single
+            )
             
-            # The final result must be 256x256. 
-            # If for some reason upsample was NEVER chosen, we fallback to bicubic 
-            # (though training should heavily penalize this)
+            final_carry, decisions_stack = jax.lax.scan(
+                scan_body, init_carry, xs=None, length=self.num_steps
+            )
+            
+            x_128_final, x_256_final, is_256_final, _ = final_carry
+            
             final_out = jnp.where(
-                is_256, 
-                x_256, 
-                jax.image.resize(x_128, (256, 256, 1), method="bicubic")
+                is_256_final, 
+                x_256_final, 
+                jax.image.resize(x_128_final, (256, 256, 1), method="bicubic")
             )
             return final_out, decisions_stack
 

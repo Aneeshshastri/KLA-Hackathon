@@ -17,12 +17,12 @@ Usage:
 """
 
 import os
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.4'
-os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 
 import sys
-sys.stdout.reconfigure(line_buffering=True)
-sys.stderr.reconfigure(line_buffering=True)
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
 import time
 import argparse
 from pathlib import Path
@@ -132,7 +132,7 @@ def main():
     parser.add_argument("--speckle-ckpt", default="ckpt/speckle")
     parser.add_argument("--data-dir", default="../train", help="Original combined dataset")
     parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=8)  # Smaller batch — 4 experts run simultaneously
+    parser.add_argument("--batch-size", type=int, default=4)  # Doubled batch size for faster training
     parser.add_argument("--lr", type=float, default=5e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--grad-clip", type=float, default=1.0)
@@ -218,7 +218,7 @@ def main():
             optax.chain(
                 optax.clip_by_global_norm(args.grad_clip),
                 optax.adamw(learning_rate=args.lr, weight_decay=args.weight_decay),
-            ),
+            ), wrt=nnx.Param,
         )
 
     ckpt_manager = build_checkpoint_manager(args.ckpt_dir, max_to_keep=3)
