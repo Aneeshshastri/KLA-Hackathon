@@ -101,11 +101,11 @@ def load_expert_checkpoint(ckpt_dir, expert_module):
     if latest is None:
         raise FileNotFoundError(f"No checkpoint found in {ckpt_dir}")
 
-    _, abstract_state = nnx.split(nnx.eval_shape(lambda: expert_module))
+    _, actual_state = nnx.split(expert_module)
     restored = manager.restore(
         latest,
         args=ocp.args.Composite(
-            model_state=ocp.args.StandardRestore(abstract_state),
+            model_state=ocp.args.StandardRestore(actual_state),
         ),
     )
     nnx.update(expert_module, restored.model_state)
