@@ -287,7 +287,7 @@ class NAFBlock(nnx.Module):
         x = self.sg1(x)
         x = self.sca(x)
         x = self.conv3(x)
-        x = res_x + x * self.beta1.get_value()
+        x = res_x + x * self.beta1
 
         # Feed Forward Mixing
         res_x = x
@@ -295,7 +295,7 @@ class NAFBlock(nnx.Module):
         x = self.conv4(x)
         x = self.sg2(x)
         x = self.conv5(x)
-        x = res_x + x * self.beta2.get_value()
+        x = res_x + x * self.beta2
 
         return x
 
