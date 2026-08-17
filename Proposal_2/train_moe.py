@@ -35,6 +35,22 @@ import numpy as np
 import optax
 import orbax.checkpoint as ocp
 from flax import nnx
+
+# --- Monkey-patch nnx.List for older flax versions on Kaggle ---
+if not hasattr(nnx, 'List'):
+    class NNXList(nnx.Module):
+        def __init__(self, modules):
+            for i, m in enumerate(modules):
+                setattr(self, str(i), m)
+            self._modules = list(modules)
+        def __iter__(self):
+            return iter(self._modules)
+        def __getitem__(self, idx):
+            return self._modules[idx]
+        def __len__(self):
+            return len(self._modules)
+    nnx.List = NNXList
+# ----------------------------------------------------------------
 from sklearn.model_selection import train_test_split
 from tqdm.auto import tqdm
 
