@@ -83,5 +83,3 @@ Here are some comparisons -
 
 ## Optimisations
 We utilised meshing to make use of TPUs for training. Grain for dataloaders.
-
-The final model is quantized to **FP8** using the `qwix` library, bringing the file size down to < 2MB while preserving high fidelity restoration. This gave a significant inference speed boost, while also taking up lesser VRAM.
