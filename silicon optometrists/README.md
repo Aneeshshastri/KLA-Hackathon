@@ -5,7 +5,7 @@ This is the final submission package for team **Silicon Optometrists**.
 ## Solution Overview
 Our model uses a **NAFNet (Nonlinear Activation Free Network)** architecture built with `flax.nnx` and JAX.
 The model was heavily modified to include a degradation encoder and multi-scale feature trunks to handle diverse noise profiles. 
-The final model is quantized to **FP8** using the `qwix` library, bringing the file size down to < 2MB while preserving high fidelity restoration.
+The final model is quantized to **FP8** using the `qwix` library, bringing the file size down to < 4MB while preserving high fidelity restoration.
 
 ## Requirements
 - Python 3.10+
