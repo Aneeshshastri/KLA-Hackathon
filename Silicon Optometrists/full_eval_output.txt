@@ -1,17 +1,0 @@
-Loaded 320 validation samples.
-Loading model...
-Compiling model...
-Compilation finished in 14.3308 seconds.
-Evaluating 320 validation samples in 10 batches...
-Evaluating:   0%|          | 0/10 [00:00<?, ?it/s]E0818 17:07:03.047897   21305 cuda_timer.cc:87] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
-Evaluating:  10%|█         | 1/10 [00:54<08:11, 54.62s/it]Evaluating:  20%|██        | 2/10 [00:55<03:01, 22.74s/it]Evaluating:  30%|███       | 3/10 [00:55<01:27, 12.54s/it]Evaluating:  40%|████      | 4/10 [00:55<00:46,  7.76s/it]Evaluating:  50%|█████     | 5/10 [00:56<00:25,  5.11s/it]Evaluating:  60%|██████    | 6/10 [00:56<00:14,  3.51s/it]Evaluating:  70%|███████   | 7/10 [00:57<00:07,  2.49s/it]Evaluating:  80%|████████  | 8/10 [00:57<00:03,  1.83s/it]Evaluating:  90%|█████████ | 9/10 [00:57<00:01,  1.39s/it]Evaluating: 100%|██████████| 10/10 [00:58<00:00,  1.09s/it]Evaluating: 100%|██████████| 10/10 [00:58<00:00,  5.84s/it]
-
---- Validation Results ---
-Mean PSNR:  28.3969
-Mean SSIM:  0.7660
-Mean LPIPS: 0.1423
-
---- Wall-Clock Metrics ---
-Compilation Time:       14.3308 seconds
-Mean Time per Batch:    5.1286 seconds
-Total Processing Time:  58.3585 seconds
