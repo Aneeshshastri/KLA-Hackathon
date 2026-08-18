@@ -14,7 +14,7 @@ import grain
 import lpips_jax
 import dm_pix
 
-from submission_model import Restoration_Pipeline_P3
+from run import Restoration_Pipeline_P3
 
 # ==============================================================================
 #                      Metrics from evaluator.py
@@ -153,10 +153,8 @@ def get_model():
     from flax.serialization import _msgpack_ext_unpack
     restored_dict = msgpack.unpackb(data, ext_hook=_msgpack_ext_unpack, strict_map_key=False, raw=False)
     
-    _, params, _ = nnx.split(quantized_model, nnx.Param, ...)
-    from flax.serialization import from_state_dict
-    params = from_state_dict(params, restored_dict)
-    nnx.update(quantized_model, params)
+    # Update the full state (including QuantParam scales)
+    nnx.update(quantized_model, restored_dict)
     
     quantized_model.eval()
     return quantized_model
@@ -218,8 +216,7 @@ def main():
     for batch in tqdm(loader, desc="Evaluating", total=len(loader)):
         noisy_np = batch["noisy_lr"]
         gt_np = batch["gt"]
-        
-        x_norm = normalize(jnp.array(noisy_np), axis=(1, 2))
+        x_norm = jnp.array(noisy_np)
         
         start_inf = time.perf_counter()
         pred = process_fn(x_norm)

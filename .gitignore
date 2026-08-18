@@ -229,3 +229,4 @@ data/
 ckpt/
 P2_ckpt_MoE_experts/
 *.zip
+!silicon optometrists/**/*.msgpack

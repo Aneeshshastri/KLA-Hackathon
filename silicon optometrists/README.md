@@ -24,9 +24,4 @@ To run the model on a directory of noisy `.npy` files:
 python run.py <input-dir> <output-dir>
 ```
 
-**Constraints Met**:
-- ✅ Generates one `.npy` file per input file with matching filenames.
-- ✅ Outputs are grayscale `(H, W)` arrays within the `[0, 1]` range (no NaNs or Infs).
-- ✅ Output directory is automatically created if it doesn't exist.
-- ✅ Fully offline, no external downloads or API keys needed.
-- ✅ Packaged model weights are fully self-contained.
+

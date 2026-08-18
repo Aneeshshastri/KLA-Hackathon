@@ -1,6 +1,10 @@
 numpy==2.4.6
-jax[cuda12] # Or jax[cpu] if they want cpu, but problem statement says NVIDIA GPU
+jax[cuda12]==0.10.1
 flax==0.12.7
 qwix==0.1.8
 msgpack==1.1.2
-tqdm
+grain==0.2.16
+tqdm==4.67.3
+scikit-learn==1.8.0
+dm-pix==0.4.5
+lpips-jax==0.1.0
