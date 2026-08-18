@@ -1,0 +1,6 @@
+numpy==2.4.6
+jax[cuda12] # Or jax[cpu] if they want cpu, but problem statement says NVIDIA GPU
+flax==0.12.7
+qwix==0.1.8
+msgpack==1.1.2
+tqdm
