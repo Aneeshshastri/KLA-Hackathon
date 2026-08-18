@@ -45,7 +45,7 @@ Edition 6 kept the same 3-expert MoE routing setup from Edition 5, but replaced 
 
 Instead of a simple conv-conv-project encoding of the raw image, this encoder operated in the frequency domain directly — it computed the FFT magnitude spectrum of the input, derived a radial energy profile, and used a small learned network to predict adaptive band centres and bandwidths for splitting the spectrum into a set of frequency bands. Each band was passed through its own conv extractor and projected into a token, and the resulting per-band tokens were combined via a learned soft-routing/attention step into a single degradation embedding.
 
-The motivation was that a coarse spatial encoding (as in Edition 2/5) may not capture *what kind* of degradation is present as precisely as an encoding derived directly from the image's frequency signature — noises captured by the high frequency components, and blurs captured by low frequency components. Indirectly, we hoped this would lead to better informed routing by the `FrequencyRouter`.
+The motivation was that a coarse spatial encoding (as in Edition 2/5) may not capture what kind of degradation is present as precisely as an encoding derived directly from the image's frequency signature - noises captured by the high frequency components, and blurs captured by low frequency components. Indirectly, we hoped this would lead to better informed routing by the `FrequencyRouter`.
 
 ---
 
