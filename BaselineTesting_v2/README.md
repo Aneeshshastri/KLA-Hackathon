@@ -53,12 +53,12 @@ The motivation was that a coarse spatial encoding (as in Edition 2/5) may not ca
 
 | Edition | Description                                 | Mean SSIM | Mean PSNR | Mean LPIPS | Sample                                    |
 | ------- | ------------------------------------------- | --------- | --------- | ---------- | ----------------------------------------- |
-| 1       | Baseline (Pixel Shuffle + bicubic residual) | 0.7298    | 27.6306   | 0.3170     | ![Generated_Samples1](BaselineTesting_v2/results/E1_ZeroDegradationEnc/output_train.png) |
-| 2       | + Degradation Encoder + FiLM                | 0.7276    | 27.5651   | 0.3216     | ![Generated_Samples1](BaselineTesting_v2/results/E2_DegradationEnc_Residual/output_train.png) |
-| 3       | + Haar DWT + DetailFusion                   | 0.7149    | 27.2994   | 0.3447     | ![Generated_Samples1](BaselineTesting_v2/results/E3_Wavelet_DirectRecon/output_train.png) |
-| 4       | + AdaptiveFrequencyBlock                    | 0.7279    | 27.5763   | 0.3206     | ![Generated_Samples1](BaselineTesting_v2/results/E4_AdaIR_residual/output_train.png) |
-| 5       | + 3-expert MoE (FrequencyRouter)            | 0.7337    | 27.7419   | 0.3050     | ![Generated_Samples1](BaselineTesting_v2/results/E5_3RoutedResdiualHeads/output_train.png) |
-| 6       | + BlindDFCTokenEncoder                      | 0.7353    | 27.7940   | 0.2974     | ![Generated_Samples1](BaselineTesting_v2/results/E6_DFCToken_3ResdiualHeads/output_train.png) |
+| 1       | Baseline (Pixel Shuffle + bicubic residual) | 0.7298    | 27.6306   | 0.3170     | ![Generated_Samples1](results/E1_ZeroDegradationEnc/output_train.png) |
+| 2       | + Degradation Encoder + FiLM                | 0.7276    | 27.5651   | 0.3216     | ![Generated_Samples1](results/E2_DegradationEnc_Residual/output_train.png) |
+| 3       | + Haar DWT + DetailFusion                   | 0.7149    | 27.2994   | 0.3447     | ![Generated_Samples1](results/E3_Wavelet_DirectRecon/output_train.png) |
+| 4       | + AdaptiveFrequencyBlock                    | 0.7279    | 27.5763   | 0.3206     | ![Generated_Samples1](results/E4_AdaIR_residual/output_train.png) |
+| 5       | + 3-expert MoE (FrequencyRouter)            | 0.7337    | 27.7419   | 0.3050     | ![Generated_Samples1](results/E5_3RoutedResdiualHeads/output_train.png) |
+| 6       | + BlindDFCTokenEncoder                      | 0.7353    | 27.7940   | 0.2974     | ![Generated_Samples1](results/E6_DFCToken_3ResdiualHeads/output_train.png) |
 
 ---
 
