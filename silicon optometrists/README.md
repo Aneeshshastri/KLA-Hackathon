@@ -57,7 +57,7 @@ This degradation embedding is produced by the Adaptive FFT Band Token Encoder. I
 The soft image-level router produces routing weights that combine with the trunk's processed features at three residual experts; *three specialized heads* producing candidate residuals, blended into a single weighted residual.
 
 This weighted residual is then added to a bicubic up-sampled NoisyLR input, before pixel intensities are clamped to the range [0, 1]. A straight-through estimator ensures gradients still flow through the clamp for out-of-range predictions, so the model continues learning to correct them rather than stalling at the boundary due to signals turning silent.
-## Training Losses and Optimisations
+## Training Losses
 We used the following losses:
 
 The model is trained on a weighted combination of six losses, each targeting a different aspect of restoration quality:
