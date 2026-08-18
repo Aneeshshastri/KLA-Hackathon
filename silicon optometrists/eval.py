@@ -178,11 +178,15 @@ def main():
     
     assert len(all_noisy) > 0 and len(all_noisy) == len(all_gt), "Dataset mismatch or missing files."
     
-    # Validation split aligned with train config
-    _, val_noisy, _, val_gt = train_test_split(
-        all_noisy, all_gt,
-        test_size=args.val_split, random_state=args.seed
-    )
+    import time
+    if args.val_split >= 1.0:
+        val_noisy, val_gt = all_noisy, all_gt
+    else:
+        # Validation split aligned with train config
+        _, val_noisy, _, val_gt = train_test_split(
+            all_noisy, all_gt,
+            test_size=args.val_split, random_state=args.seed
+        )
     
     print(f"Loaded {len(val_noisy)} validation samples.")
     print("Loading model...")
@@ -195,9 +199,20 @@ def main():
     
     loader = create_src_dataloader(val_noisy, val_gt, args.batch_size)
     
+    print("Compiling model...")
+    dummy_input = jnp.zeros((1, 256, 256, 1), dtype=jnp.float32)
+    start_compile = time.perf_counter()
+    _ = process_fn(dummy_input)
+    jax.block_until_ready(_)
+    compile_time = time.perf_counter() - start_compile
+    print(f"Compilation finished in {compile_time:.4f} seconds.")
+    
     all_psnr = []
     all_ssim = []
     all_lpips = []
+    
+    inference_times = []
+    start_total = time.perf_counter()
     
     print(f"Evaluating {len(val_noisy)} validation samples in {len(loader)} batches...")
     for batch in tqdm(loader, desc="Evaluating", total=len(loader)):
@@ -205,7 +220,11 @@ def main():
         gt_np = batch["gt"]
         
         x_norm = normalize(jnp.array(noisy_np), axis=(1, 2))
+        
+        start_inf = time.perf_counter()
         pred = process_fn(x_norm)
+        jax.block_until_ready(pred)
+        inference_times.append(time.perf_counter() - start_inf)
         
         pred = jnp.clip(jnp.nan_to_num(pred, nan=0.0, posinf=1.0, neginf=0.0), 0.0, 1.0)
         gt_jnp = jnp.array(gt_np)
@@ -218,10 +237,17 @@ def main():
         all_ssim.extend(np.asarray(batch_ssim).flatten().tolist())
         all_lpips.extend(np.asarray(batch_lpips).flatten().tolist())
         
+    total_time = time.perf_counter() - start_total
+    
     print("\n--- Validation Results ---")
     print(f"Mean PSNR:  {np.mean(all_psnr):.4f}")
     print(f"Mean SSIM:  {np.mean(all_ssim):.4f}")
     print(f"Mean LPIPS: {np.mean(all_lpips):.4f}")
+    
+    print("\n--- Wall-Clock Metrics ---")
+    print(f"Compilation Time:       {compile_time:.4f} seconds")
+    print(f"Mean Time per Batch:    {np.mean(inference_times):.4f} seconds")
+    print(f"Total Processing Time:  {total_time:.4f} seconds")
 
 if __name__ == "__main__":
     main()
