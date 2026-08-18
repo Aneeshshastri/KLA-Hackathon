@@ -63,45 +63,84 @@ def get_model():
     
     return quantized_model
 
-def process_file(file_path, output_dir, process_fn):
-    # Load
-    noisy = np.load(file_path).astype(np.float32)
-    original_shape = noisy.shape
-    
-    # Add channel dim if (H, W)
-    if noisy.ndim == 2:
-        noisy = noisy[..., None]
-    
-    # Add batch dim (1, H, W, 1)
-    noisy = noisy[None, ...]
-    
-    # Normalize (uses standard deviation and mean of the noisy image)
-    noisy_jnp = jnp.array(noisy)
-    x_norm = normalize(noisy_jnp, axis=(1, 2))
-    
-    # Inference
-    pred = process_fn(x_norm)
-    pred_np = np.asarray(pred)
-    
-    # Remove batch dim
-    pred_np = pred_np[0]
-    
-    # Remove channel dim if original was 2D
-    if len(original_shape) == 2:
-        pred_np = pred_np[..., 0]
+import grain
+
+class NpySingleDataSource(grain.sources.RandomAccessDataSource):
+    def __init__(self, noisy_files: list):
+        self.noisy_files = list(noisy_files)
+        self.noisy_data = [np.load(file).astype(np.float32) for file in self.noisy_files]
         
-    # Strictly enforce constraints
-    pred_np = np.nan_to_num(pred_np, nan=0.0, posinf=1.0, neginf=0.0)
-    pred_np = np.clip(pred_np, 0.0, 1.0)
-    
-    # Save
-    out_path = output_dir / file_path.name
-    np.save(out_path, pred_np)
+    def __len__(self):
+        return len(self.noisy_data)
+        
+    def __getitem__(self, index):
+        return {
+            "noisy_lr": self.noisy_data[index],
+            "filename": self.noisy_files[index].name
+        }
+
+class GroupedInferenceDataLoader:
+    def __init__(self, source, batch_size):
+        self.source = source
+        self.batch_size = batch_size
+        
+        self.indices_by_shape = {}
+        for idx in range(len(source)):
+            shape = source.noisy_data[idx].shape[:2]
+            if shape not in self.indices_by_shape:
+                self.indices_by_shape[shape] = []
+            self.indices_by_shape[shape].append(idx)
+            
+        self.total_batches = 0
+        for shape, indices in self.indices_by_shape.items():
+            self.total_batches += (len(indices) + batch_size - 1) // batch_size
+
+    def __len__(self):
+        return self.total_batches
+
+    def __iter__(self):
+        batches = []
+        for shape, indices in self.indices_by_shape.items():
+            for i in range(0, len(indices), self.batch_size):
+                batches.append(indices[i:i+self.batch_size])
+                
+        self.current_batch_idx = 0
+        self.batches = batches
+        return self
+
+    def __next__(self):
+        if self.current_batch_idx >= len(self.batches):
+            raise StopIteration
+            
+        batch_indices = self.batches[self.current_batch_idx]
+        self.current_batch_idx += 1
+        
+        batch_noisy = []
+        batch_filenames = []
+        
+        for idx in batch_indices:
+            element = self.source[idx]
+            noisy = element["noisy_lr"]
+            if noisy.ndim == 2:
+                noisy = noisy[..., None]
+            batch_noisy.append(noisy)
+            batch_filenames.append(element["filename"])
+            
+        return {
+            "noisy_lr": np.stack(batch_noisy),
+            "filenames": batch_filenames
+        }
+
+def create_inference_dataloader(noisy_files, batch_size):
+    source = NpySingleDataSource(noisy_files)
+    loader = GroupedInferenceDataLoader(source, batch_size)
+    return loader
 
 def main():
     parser = argparse.ArgumentParser(description="KLA Hackathon Evaluation Script - Silicon Optometrists")
     parser.add_argument("input_dir", type=str, help="Directory containing noisy .npy files")
     parser.add_argument("output_dir", type=str, help="Directory to save restored .npy files")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size for inference")
     args = parser.parse_args()
     
     input_dir = Path(args.input_dir)
@@ -122,13 +161,34 @@ def main():
     
     @nnx.jit
     def process_fn(x):
-        # Model returns (restored, degradation_latent)
         restored, _ = model(x)
         return restored
         
-    print(f"Processing {len(files)} files...")
-    for f in tqdm(files, desc="Restoring"):
-        process_file(f, output_dir, process_fn)
+    loader = create_inference_dataloader(files, args.batch_size)
+    
+    print(f"Processing {len(files)} files in {len(loader)} batches...")
+    for batch in tqdm(loader, desc="Restoring", total=len(loader)):
+        noisy = batch["noisy_lr"]
+        filenames = batch["filenames"]
+        
+        x_norm = normalize(jnp.array(noisy), axis=(1, 2))
+        pred = process_fn(x_norm)
+        pred_np = np.asarray(pred)
+        
+        # Enforce constraints
+        pred_np = np.nan_to_num(pred_np, nan=0.0, posinf=1.0, neginf=0.0)
+        pred_np = np.clip(pred_np, 0.0, 1.0)
+        
+        for i, filename in enumerate(filenames):
+            # Check original shape from file data to see if it was 2D
+            # If it was 2D originally, remove the channel dimension
+            original_shape = np.load(input_dir / filename, mmap_mode='r').shape
+            
+            img_out = pred_np[i]
+            if len(original_shape) == 2:
+                img_out = img_out[..., 0]
+                
+            np.save(output_dir / filename, img_out)
         
     print(f"Done! Restored images saved to {output_dir}")
 
